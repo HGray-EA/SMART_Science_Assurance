@@ -63,14 +63,14 @@ EA_T1 <- EA_Invert %>% filter(SITE_ID %in% c(43407, 194671,43091,
                                             SITE_ID == 44146 ~ "Ironbridge"
                                         ),
                         # Rename variables so they match between SMART & EA
-                        "BMWP_Total" = "BMWP_Total",
-                        "BMWP_N_TAXA" = "NTAXA",
-                        "BMWP_ASPT" = "ASPT",
-                        "WHPT_TOTAL" = "WHPT",
-                        "WHPT_ASPT" = "WHPT_ASPT",
-                        "EPSI_MIXED_LEVEL_SCORE" ="PSI",
-                        "CCI" = "CCI",
-                        "LIFE_SPECIES_INDEX" = "LIFE"
+                        BMWP = BMWP_TOTAL,
+                        NTAXA = BMWP_N_TAXA,
+                        ASPT = BMWP_ASPT,
+                        WHPT = WHPT_TOTAL,
+                        WHPT.ASPT = WHPT_ASPT,
+                        PSI = EPSI_MIXED_LEVEL_SCORE,
+                        CCI = CCI,
+                        LIFE = LIFE_SPECIES_INDEX
                                      ) %>% 
                       filter(
                             SMART_Site %in% date_ranges$Site, 
@@ -86,18 +86,10 @@ SMART_T1 <- SMART %>% filter(Site %in% c("Borough Bridge", "Pinglestone",
                         SMART_Site = Site
                       )
 
-"BMWP_Total" = "BMWP_Total"
-"BMWP_N_TAXA" = "NTAXA"
-"BMWP_ASPT" = "ASPT"
-"WHPT_TOTAL" = "WHPT"
-"WHPT_ASPT" = "WHPT_ASPT"
-"EPSI_MIXED_LEVEL_SCORE" ="PSI"
-"CCI" = "CCI"
-"LIFE_SPECIES_INDEX" = "LIFE"
-
 
 
 # BMWP NTAXA
+names(EA_T1)
 
 ggplot()+geom_point(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+
   geom_line(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+ 

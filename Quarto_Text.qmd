@@ -1,0 +1,16 @@
+---
+title: "SMART_EA_Riverfly_Comparison"
+format: html
+editor: visual
+---
+## Introduction
+
+Monitoring of 5 sites compared on the Test & Itchen, using the same kick-sample method however, a different count method, with SMART Rivers scheme using full count of all macroinvertebrates in a kick net, whilst the EA uses a quarter then multiplies scores? What's the official term for this?
+
+### Data Obstacles 
+
+Very few surveys at these sites were sampled on the same day due to the distruption of the surveying technique. Therefore, a fuzzy match was used to identify samples at the same sites taken within a <= 1 week. These were then compared. 
+
+The below plot shows whether there are any trends across sites in which samples taken =< 7 days after another impact on score and vice versa. This is to identify whether the act of surveying has a result on the survey.
+
+[insert plot showing nature of surveys where close to one another]
