@@ -3,6 +3,7 @@ library(tidyverse)
 library(magrittr)
 library(sf)
 library(leaflet)
+library(fuzzyjoin)
 
 # Merge SMART Data
 A <- read.csv("C:/Users/hg000051/Downloads/SmartRivers1921/Per-Survey Data.csv")
@@ -17,9 +18,6 @@ SMART <- rbind(A,B,C)
 
 # Bounding box we chose to filter SMART data by we also filter EA data.
 bbox <- c(ymin = 50.454578, xmin = -3.647665, ymax = 51.551322, xmax = -0.886754)
-
-st_sf(geometry = st_sfc(square_polygon, crs = 4326))
-
 
 bbox_sf <- st_as_sfc(st_bbox(bbox, crs = st_crs(4326)))
 bbox_sf <- st_sf(geometry = bbox_sf) 
@@ -53,7 +51,7 @@ date_ranges <- SMART %>%
 EA_T1 <- EA_Invert %>% filter(SITE_ID %in% c(43407, 194671,43091, 
                                           158095, 44146)) %>% 
                       mutate(
-                        SAMPLE_DATE = dmy(SAMPLE_DATE),
+                        Date = dmy(SAMPLE_DATE),
                         # Give EA sites matching SMART names from sites supplied by Matt O-F
                         SMART_Site = case_when(
                                             SITE_ID == 43407 ~ "Borough Bridge",
@@ -74,49 +72,40 @@ EA_T1 <- EA_Invert %>% filter(SITE_ID %in% c(43407, 194671,43091,
                                      ) %>% 
                       filter(
                             SMART_Site %in% date_ranges$Site, 
-                            SAMPLE_DATE >= date_ranges$start_date[match(SMART_Site, date_ranges$Site)] &
-                              SAMPLE_DATE <= date_ranges$end_date[match(SMART_Site, date_ranges$Site)]
+                            Date >= date_ranges$start_date[match(SMART_Site, date_ranges$Site)] &
+                              Date <= date_ranges$end_date[match(SMART_Site, date_ranges$Site)]
                           )
 
 
+# Filter SMART data by sites Matt O-F selected based on surveyor/ datetime
 SMART_T1 <- SMART %>% filter(Site %in% c("Borough Bridge", "Pinglestone", 
                                        "Itchen St Cross", "Broadlands", "Ironbridge")) %>% 
                       mutate(
-                        Recorded..Date = ymd(Recorded..Date),
+                        Date = ymd(Recorded..Date),
                         SMART_Site = Site
                       )
 
-
-
-# BMWP NTAXA
-names(EA_T1)
-
-ggplot()+geom_point(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+
-  geom_line(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+ 
-  geom_point(data=SMART_T1, aes(x = Recorded..Date, y = NTAXA), col = "blue")+
-  geom_line(data=SMART_T1, aes(x = Recorded..Date, y = NTAXA), col = "blue")+ 
-  facet_wrap(~SMART_Site)+
-  theme_bw()+
-  labs(title="BMWP Test & Itchen SMART - EA Riverfly Sites")+
-  theme(plot.title = element_text(hjust = 0.5)) 
-
-
-ggplot()+geom_point(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+
-  geom_line(data=EA_T1, aes(x = SAMPLE_DATE, y= BMWP_N_TAXA), col= "seagreen")+ 
-  geom_point(data=SMART_T1, aes(x = Recorded..Date, y = NTAXA), col = "blue")+
-  geom_line(data=SMART_T1, aes(x = Recorded..Date, y = NTAXA), col = "blue")+ 
-  facet_wrap(~SMART_Site)+
-  theme_bw()+
-  labs(title="BMWP Test & Itchen SMART - EA Riverfly Sites")+
-  theme(plot.title = element_text(hjust = 0.5)) 
-
-
-
-# PSI ?
-
-ggplot()+geom_line(data=EA_T1, aes(x = SAMPLE_DATE, y= PSI), col= "seagreen")+ 
-  geom_line(data=SMART_T1, aes(x = Recorded..Date, y = EPSI_MIXED_LEVEL_SCORE), col = "blue")+ facet_wrap(~Site)
-
+# Isolate determinants to plot
+    deters <- tail(names(EA_T1), n=7)
+    culr <- c("EA" = "seagreen", "SMART" = "blue" )
+    
+for (y in deters){    
+  
+   a <-  ggplot() +
+      geom_point(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) +
+      geom_line(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) + 
+      geom_point(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
+      geom_line(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
+      scale_colour_manual(values = culr) +
+      facet_wrap(~SMART_Site) + 
+      labs(title = paste0(y, " Test & Itchen SMART - EA Riverfly Sites"),
+           y = y,
+           color = "Surveyor") + 
+      theme(plot.title = element_text(hjust = 0.5))+
+      theme_bw()
+   
+   ggsave(filename = paste0(y,".pdf"), plot = a)
+  }
 
 ## Further filtering 
 # Match EA sites to SMART sites where samples were taken on the same time 
@@ -134,14 +123,10 @@ qq_1 <- EA_T1 %>%
   left_join(SMART_T1 %>% st_drop_geometry(),
             by = c("SAMPLE_DATE" = 'Recorded..Date'))
 
-omlete= EA_T1[EA_T1$SMART_Site == "Itchen St Cross",]
-itch=SMART_T1[SMART_T1$SMART_Site == "Itchen St Cross",]
 
 # Finds if dates match
 common_dates <- intersect(omlete$SAMPLE_DATE, itch$Recorded..Date)
 common_dates
-
-library(fuzzyjoin)
 
 fuzzy_match <- fuzzy_left_join(
   omlete, itch, 
