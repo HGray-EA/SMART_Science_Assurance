@@ -5,7 +5,7 @@ library(sf)
 library(leaflet)
 library(fuzzyjoin)
 
-# Merge SMART Data
+# Merge SMART Data; can only be pulled of Cartographer in small chunks 
 A <- read.csv("C:/Users/hg000051/Downloads/SmartRivers1921/Per-Survey Data.csv")
 B <- read.csv("C:/Users/hg000051/Downloads/SmartRivers2123/Per-Survey Data.csv")
 C <- read.csv("C:/Users/hg000051/Downloads/SmartRivers2324/Per-Survey Data.csv")
@@ -16,7 +16,7 @@ SMART <- rbind(A,B,C)
 
 # Import EA Data associated with SMART sites
 
-# Bounding box we chose to filter SMART data by we also filter EA data.
+# Bounding box from SMART portal we chose to filter SMART data by we also filter EA data.
 bbox <- c(ymin = 50.454578, xmin = -3.647665, ymax = 51.551322, xmax = -0.886754)
 
 bbox_sf <- st_as_sfc(st_bbox(bbox, crs = st_crs(4326)))
@@ -25,6 +25,7 @@ bbox_sf <- st_sf(geometry = bbox_sf)
 EA_Invert1 <- read.csv("C:/Users/hg000051/Downloads/INV_OPEN_DATA (5)/INV_OPEN_DATA_SITE.csv") 
 EA_Invert2 <- read.csv("C:/Users/hg000051/Downloads/INV_OPEN_DATA (5)/INV_OPEN_DATA_METRICS.csv")
 
+# Join EA invert site and measures data to get full dataset.
 EA_Invert <- inner_join(EA_Invert1, EA_Invert2, by = 'SITE_ID') %>% 
   st_as_sf(coords = c("FULL_EASTING", "FULL_NORTHING"), crs=27700) %>% 
   st_transform(4326) 
@@ -35,7 +36,8 @@ SMART %<>% st_as_sf(coords = c("Location..Longitude", "Location..Latitude"), crs
 
 #Matt's Tier 1 sites
 
-# Make sure all date ranges are the same so we compare over the same time-window.
+# Make sure all date ranges are the same so we compare over the same time-window,
+# this minimises time as a dependent variable.
 
 date_ranges <- SMART %>%
   group_by(Site) %>%
@@ -52,7 +54,7 @@ EA_T1 <- EA_Invert %>% filter(SITE_ID %in% c(43407, 194671,43091,
                                           158095, 44146)) %>% 
                       mutate(
                         Date = dmy(SAMPLE_DATE),
-                        # Give EA sites matching SMART names from sites supplied by Matt O-F
+                        # Give EA sites matching SMART names from sites supplied by Matt O-F so comparable
                         SMART_Site = case_when(
                                             SITE_ID == 43407 ~ "Borough Bridge",
                                             SITE_ID == 194671 ~ "Pinglestone",
@@ -88,7 +90,8 @@ SMART_T1 <- SMART %>% filter(Site %in% c("Borough Bridge", "Pinglestone",
 # Isolate determinants to plot
     deters <- tail(names(EA_T1), n=7)
     culr <- c("EA" = "seagreen", "SMART" = "blue" )
-    
+
+# Plot each matching determinant     
 for (y in deters){    
   
    a <-  ggplot() +
@@ -100,12 +103,14 @@ for (y in deters){
       facet_wrap(~SMART_Site) + 
       labs(title = paste0(y, " Test & Itchen SMART - EA Riverfly Sites"),
            y = y,
-           color = "Surveyor") + 
+           color = "Survey") + 
       theme(plot.title = element_text(hjust = 0.5))+
       theme_bw()
    
    ggsave(filename = paste0(y,".pdf"), plot = a)
   }
+
+### Here probably need some sort of stat summary instead of just comparing plots    
 
 ## Further filtering 
 # Match EA sites to SMART sites where samples were taken on the same time 
@@ -114,25 +119,22 @@ for (y in deters){
 
 # Check dates are same format
 
-class(EA_T1$SAMPLE_DATE) == class(SMART_T1$Recorded..Date)
+class(EA_T1$SAMPLE_DATE) == class(SMART_T1$Recorded..Date) 
 
 qq_1 <- EA_T1 %>% 
   st_drop_geometry() %>% 
   distinct() %>% 
   group_by(SMART_Site) %>% 
   left_join(SMART_T1 %>% st_drop_geometry(),
-            by = c("SAMPLE_DATE" = 'Recorded..Date'))
+            by = 'Date')
 
-
-# Finds if dates match
-common_dates <- intersect(omlete$SAMPLE_DATE, itch$Recorded..Date)
-common_dates
 
 fuzzy_match <- fuzzy_left_join(
   omlete, itch, 
   by = c("SAMPLE_DATE" = "Recorded..Date"),
   match_fun = function(x, y) abs(difftime(x, y, units = "days")) <= 7
 )
+
 fuzzy_match
 
 Fuz <- fuzzy_match %>% filter(!is.na(VLOOKUP.Key))
