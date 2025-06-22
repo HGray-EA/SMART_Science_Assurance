@@ -3,14 +3,136 @@ title: "SMART_EA_Riverfly_Comparison"
 format: html
 editor: visual
 ---
+
 ## Introduction
 
 Monitoring of 5 sites compared on the Test & Itchen, using the same kick-sample method however, a different count method, with SMART Rivers scheme using full count of all macroinvertebrates in a kick net, whilst the EA uses a quarter then multiplies scores? What's the official term for this?
 
-### Data Obstacles 
+## Site Comparison 
 
-Very few surveys at these sites were sampled on the same day due to the distruption of the surveying technique. Therefore, a fuzzy match was used to identify samples at the same sites taken within a <= 1 week. These were then compared. 
+All good experiments have minimised the dependent variables as much as possible, in a natural environment population size can vary significantly. Macro-scale processes like a sample being taken within 100m of one another but on a different riffle with different habitat complexity. 
 
-The below plot shows whether there are any trends across sites in which samples taken =< 7 days after another impact on score and vice versa. This is to identify whether the act of surveying has a result on the survey.
+Or changes in water quality, time of day of survey, survey count etc. 
 
-[insert plot showing nature of surveys where close to one another]
+Following the below visuals see ones which are comparable with date/time. Will have new lines of best fit.
+
+
+## Visualisation 
+
+:::{.panel-tabset}
+```{r Visualise timeseries trends}
+source('Data_Transforms.R')
+######################################
+
+# Isolate determinants to plot
+    deters <- tail(names(EA_T1), n=7)
+    culr <- c("EA" = "seagreen", "SMART" = "blue" )
+
+# Plot each matching determinant     
+for (y in deters) {
+      
+      response_var <- y
+      
+# EA modeling
+ea_nested <- EA_T1 %>%
+        mutate(Response = .data[[response_var]]) %>%
+        group_by(SMART_Site) %>%
+        nest() %>%
+        mutate(
+          model = map(data, ~ lm(Response ~ Date, data = .x)),
+          fitted = map2(model, data, ~ predict(.x, newdata = .y)),
+          data = map2(data, fitted, ~ mutate(.x, .fitted = .y))
+        ) %>%
+        select(SMART_Site, data) %>%
+        unnest(data) %>%
+        mutate(Survey = "EA")
+      
+# SMART modeling
+smart_nested <- SMART_T1 %>%
+        mutate(Response = .data[[response_var]]) %>%
+        group_by(SMART_Site) %>%
+        nest() %>%
+        mutate(
+          model = map(data, ~ lm(Response ~ Date, data = .x)),
+          fitted = map2(model, data, ~ predict(.x, newdata = .y)),
+          data = map2(data, fitted, ~ mutate(.x, .fitted = .y))
+        ) %>%
+        select(SMART_Site, data) %>%
+        unnest(data) %>%
+        mutate(Survey = "SMART")
+      
+# Plot
+gg <- ggplot() +
+        geom_point(data = ea_nested, aes(x = Date, y = Response, color = "EA")) +
+        geom_smooth(data = ea_nested, aes(x = Date, y = Response, color = "EA"),
+                    method  ="loess", se=FALSE, span=0.3, size=0.5) +
+        geom_line(data = ea_nested, aes(x = Date, y = .fitted, color = "EA"), linetype = "dashed") +
+        
+        geom_point(data = smart_nested, aes(x = Date, y = Response, color = "SMART")) +
+        geom_smooth(data = smart_nested, aes(x = Date, y = Response, color = "SMART"),
+                    method  ="loess", se=FALSE, span=0.3, size=0.5) +
+        geom_line(data = smart_nested, aes(x = Date, y = .fitted, color = "SMART"), linetype = "dashed") +
+        
+        scale_colour_manual(values = culr) +
+        facet_wrap(~SMART_Site) +
+        labs(title = paste0(response_var, " Test & Itchen SMART - EA Riverfly Sites"),
+             y = response_var,
+             color = "Survey") +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+### Data Obstacles
+
+Very few surveys at these sites were sampled on the same day due to the disruption of the surveying technique which would skew results. Therefore, a fuzzy match was used to identify samples at the same sites taken within a \<= 1 week. These were then compared.
+
+The below plot shows whether there are any trends across sites in which samples taken =\< 7 days after another impact on score and vice versa. This is to identify whether the act of surveying has a result on the survey.
+
+\[insert plot showing nature of surveys where close to one another\]
+
+We test for intraclass correlation, which assesses how much agreement or consistency there is between measurements of the same metric at the same site by different surveyors, here we compare EA and SMART across:
+
+-   PSI
+-   WHPT
+-   ASPT
+-   BMWP
+-   LIFE
+-   NTAXA
+-   WHPT.ASPT
+
+Note we compare sites taken within 7 days of eachother. ICC \<0 = poor, 0-0.39= Poor, 0.4- 0.6=Fair, 0.6-0.74= Good
+
+PSI ICC shows that survey methods have poor comparability and this comparability is statistically significant. Ntaxa has a poor ICC shows that surey methdos have poor comparability but this trend isn't statistically significant and just noise. LIFE has a fair agreement with LIFE scores fairly correlated between survey schemes and statistical significance. ASPT scores show good intraclass correlation and statistically significance.
+
+```{r}
+
+icc_result_psi <- ICC(fuzzy_match %>% select(PSI_ea, PSI_smart))
+icc_result_aspt <- ICC(fuzzy_match %>% select(ASPT_ea, ASPT_smart))
+icc_result_ntaxa <- ICC(fuzzy_match %>% select(NTAXA_ea, NTAXA_smart))
+icc_result_life <- ICC(fuzzy_match %>% select(LIFE_ea, LIFE_smart))
+
+print(icc_result_psi)
+
+
+```
+
+```{r}
+print(icc_result_ntaxa)
+
+```
+
+```{r}
+print(icc_result_life)
+
+```
+
+```{r}
+print(icc_result_whpt.aspt)
+
+```
+
+```{r}
+print(icc_result_aspt)
+```

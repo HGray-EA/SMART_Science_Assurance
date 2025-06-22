@@ -4,6 +4,7 @@ library(magrittr)
 library(sf)
 library(leaflet)
 library(fuzzyjoin)
+library(psych)
 
 # Merge SMART Data; can only be pulled of Cartographer in small chunks 
 A <- read.csv("C:/Users/hg000051/Downloads/SmartRivers1921/Per-Survey Data.csv")
@@ -48,7 +49,7 @@ date_ranges <- SMART %>%
 
 # filter by site ID Matt OF provided.
 # Change date format and create a new column with a matching site name for SMART so we link sites.
-# filter so that sites dates match
+# filter so that site dates match
 
 EA_T1 <- EA_Invert %>% filter(SITE_ID %in% c(43407, 194671,43091, 
                                           158095, 44146)) %>% 
@@ -94,11 +95,22 @@ SMART_T1 <- SMART %>% filter(Site %in% c("Borough Bridge", "Pinglestone",
 # Plot each matching determinant     
 for (y in deters){    
   
+  lm_ea <- lm(get(y) ~ Date , data= EA_T1)
+  
+  lm_smart <- lm(get(y) ~ Date , data= SMART_T1)
+  
+  # Get fitted values
+  pred_ea <- broom::augment(lm_ea) %>% mutate(Survey = "EA")
+  pred_smart <- broom::augment(lm_smart) %>% mutate(Survey = "SMART")
+  
+  
    a <-  ggplot() +
       geom_point(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) +
-      geom_line(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) + 
+      geom_line(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) +
+     geom_line(data=pred_ea, aes(x= Date, y=.fitted), col="seagreen2", linetype = "dashed")+
       geom_point(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
       geom_line(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
+      geom_line(data=pred_smart, aes(x= Date, y=.fitted), col="steelblue", linetype = "dashed")+
       scale_colour_manual(values = culr) +
       facet_wrap(~SMART_Site) + 
       labs(title = paste0(y, " Test & Itchen SMART - EA Riverfly Sites"),
@@ -107,11 +119,58 @@ for (y in deters){
       theme(plot.title = element_text(hjust = 0.5))+
       theme_bw()
    
+
+   # Only calculates a linear regression for 1 site then puts it on all sites.
+   
    ggsave(filename = paste0(y,".pdf"), plot = a)
+   
+   combined <- bind_rows(
+     EA_T1 %>% mutate(Survey = "EA"),
+     SMART_T1 %>% mutate(Survey = "SMART")
+   )
+   
+   lm_compare <- lm(get(y) ~ Date * Survey, data = combined)
+   print(summary(lm_compare)$coefficients)
+   
   }
 
-### Here probably need some sort of stat summary instead of just comparing plots    
-
+    
+    ggplot() +
+      geom_point(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) +
+      geom_line(data=EA_T1, aes(x = Date, y = get(y), color = "EA")) +
+      geom_smooth(data=EA_T1, aes(x= Date, y = get(y), col="red"), method = "lm")+
+      geom_point(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
+      geom_line(data=SMART_T1, aes(x = Date, y = get(y), color = "SMART")) +
+      geom_smooth(data=SMART_T1, aes(x= Date, y = get(y), col="blue"), method = "lm")
+    scale_colour_manual(values = culr) +
+      facet_wrap(~SMART_Site) + 
+      labs(title = paste0(y, " Test & Itchen SMART - EA Riverfly Sites"),
+           y = y,
+           color = "Survey") + 
+      theme(plot.title = element_text(hjust = 0.5))+
+      theme_bw()
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 ## Further filtering 
 # Match EA sites to SMART sites where samples were taken on the same time 
 
@@ -130,16 +189,59 @@ qq_1 <- EA_T1 %>%
 
 
 fuzzy_match <- fuzzy_left_join(
-  omlete, itch, 
-  by = c("SAMPLE_DATE" = "Recorded..Date"),
-  match_fun = function(x, y) abs(difftime(x, y, units = "days")) <= 7
-)
+  EA_T2,
+  SMART_T2,
+  by = c("Site" = "Site", "Date" = "Date"),
+  match_fun = list(`==`, function(x, y) abs(difftime(x, y, units = "days")) <= 7)
+)%>%
+  # Change names to match dfs
+  rename_with(~ gsub("\\.x$", "_ea", .x), ends_with(".x")) %>%
+  rename_with(~ gsub("\\.y$", "_smart", .x), ends_with(".y"))
 
-fuzzy_match
 
-Fuz <- fuzzy_match %>% filter(!is.na(VLOOKUP.Key))
+icc_data <- fuzzy_match %>%
+  filter(
+    !is.na(WHPT.ASPT_ea), 
+    !is.na(WHPT.ASPT_smart),
+    Site_ea == Site_smart,       # Ensure exact site match
+    Date_ea == Date_smart        # Ensure exact date match (or use a tolerance if needed)
+  ) %>%
+  select(Site_ea, Date_ea, WHPT.ASPT_ea, WHPT.ASPT_smart)
+
+icc_result_psi <- ICC(fuzzy_match %>% select(PSI_ea, PSI_smart))
+icc_result_aspt <- ICC(fuzzy_match %>% select(ASPT_ea, ASPT_smart))
+icc_result_ntaxa <- ICC(fuzzy_match %>% select(NTAXA_ea, NTAXA_smart))
+icc_result_life <- ICC(fuzzy_match %>% select(LIFE_ea, LIFE_smart))
+icc_result_whpt.aspt <- ICC(fuzzy_match %>% select(Site_ea, Date_ea, WHPT.ASPT_ea, WHPT.ASPT_smart))
+
+icprint(icc_result)
+
+##############################################################################################
+# Merge datasets to we can compare them statistically 
+
+EA_T2 <-  EA_T1 %>% 
+  mutate(SAMPLE_DATE = dmy(SAMPLE_DATE),
+         Site = SMART_Site) %>% 
+  select(Site, Date, BMWP, ASPT, NTAXA, WHPT, WHPT.ASPT, PSI, LIFE) %>% 
+  st_drop_geometry()
 
 
+SMART_T2 <-   SMART_T1 %>% 
+  mutate(Date = ymd(Recorded..Date),
+         Time = Recorded..Time) %>% 
+  select(Site, Date, Recorded..Time, BMWP, ASPT, NTAXA, WHPT, WHPT.ASPT, PSI, LIFE) %>% 
+  st_drop_geometry()
+
+
+model = lm(ASPT ~ Date, data=)
+model <- lm(ASPT ~ Year * Surveyor, data = df)
+summary(model)
+
+
+#compare across multiple sites
+library(lme4)
+model <- lmer(ASPT ~ Year * Surveyor + (1|Site), data = df)
+summary(model)
 
 
 
